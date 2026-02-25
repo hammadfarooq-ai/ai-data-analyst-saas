@@ -1,0 +1,51 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: ai-data-analyst-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-data-analyst-backend
+    env_file:
+      - .env
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai-data-analyst-frontend
+    env_file:
+      - .env
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  mysql_data:

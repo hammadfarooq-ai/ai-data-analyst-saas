@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 
 import joblib
@@ -123,6 +124,8 @@ def _extract_feature_importance(model, feature_names: list[str]) -> list[dict]:
 
 
 def _compute_shap_summary(model, x_transformed: np.ndarray, feature_names: list[str]) -> dict:
+    if hasattr(x_transformed, "toarray"):
+        x_transformed = x_transformed.toarray()
     sample = x_transformed[: min(300, x_transformed.shape[0])]
     try:
         if "Forest" in model.__class__.__name__ or "GradientBoosting" in model.__class__.__name__ or "XGB" in model.__class__.__name__:
@@ -151,9 +154,12 @@ def train_and_select_model(df: pd.DataFrame, target_column: str, problem_type: s
     preprocessor, numeric_features, _ = _build_preprocessor(df, target_column)
     models = _classification_models() if problem_type == "classification" else _regression_models()
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        x, y, test_size=0.2, random_state=42, stratify=y if problem_type == "classification" else None
-    )
+    try:
+        x_train, x_test, y_train, y_test = train_test_split(
+            x, y, test_size=0.2, random_state=42, stratify=y if problem_type == "classification" else None
+        )
+    except ValueError:
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
     all_metrics = {}
     best_model_name = None
@@ -165,7 +171,11 @@ def train_and_select_model(df: pd.DataFrame, target_column: str, problem_type: s
     for name, model in models.items():
         pipeline = Pipeline(steps=[("preprocessor", preprocessor), ("model", model)])
         scoring = "f1_weighted" if problem_type == "classification" else "r2"
-        cv_scores = cross_val_score(pipeline, x_train, y_train, cv=5, scoring=scoring)
+        cv_folds = 5 if len(x_train) >= 50 else 3
+        try:
+            cv_scores = cross_val_score(pipeline, x_train, y_train, cv=cv_folds, scoring=scoring)
+        except ValueError:
+            cv_scores = np.array([0.0])
 
         pipeline.fit(x_train, y_train)
         y_pred = pipeline.predict(x_test)
@@ -196,7 +206,7 @@ def train_and_select_model(df: pd.DataFrame, target_column: str, problem_type: s
     feature_importance = _extract_feature_importance(trained_model, feature_names)
     shap_summary = _compute_shap_summary(trained_model, transformed_x, feature_names)
 
-    model_id = f"model_{np.random.randint(100000, 999999)}"
+    model_id = f"model_{uuid.uuid4().hex[:12]}"
     model_path = Path(settings.model_dir) / f"{model_id}.joblib"
     model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(
