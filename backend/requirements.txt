@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pandas
+numpy
+scikit-learn
+shap
+plotly
+sqlalchemy
+pymysql
+python-dotenv
+pydantic-settings
+joblib
+reportlab
+xgboost
