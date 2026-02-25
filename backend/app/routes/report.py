@@ -44,3 +44,8 @@ def download_report(model_id: str, db: Session = Depends(get_db)):
         media_type="application/pdf",
         filename=file_name,
     )
+
+
+@router.get("/download-report")
+def download_report_query(model_id: str, db: Session = Depends(get_db)):
+    return download_report(model_id=model_id, db=db)
